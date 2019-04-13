@@ -1,25 +1,129 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Reproducible Res. Assignment1"
+output: html_document
 ---
 
+1. Downloading data and reading it using read.csv():
+```{r}
+act.dat <- read.csv("activity.csv", header = T)
+summary(act.dat)
 
-## Loading and preprocessing the data
+library(dplyr)
+
+### list missings by dates
+n.miss.by.date <- act.dat %>%
+                  group_by(date) %>%
+                  summarise(na_count = sum(is.na(steps)==T)) %>%
+                  filter(na_count>0)
+n.miss.by.date
+```
 
 
 
-## What is mean total number of steps taken per day?
+2. Histogram of the total number of steps taken each day. I use impute steps variable for this histogram plot.
+
+```{r}
+sum.steps.bydate <- act.dat %>%
+                    group_by(date) %>%
+                    summarise(sum.steps = sum(steps, na.rm=T))
+                    
+hist(sum.steps.bydate$sum.steps,main="Histogram of Total Steps per Day",col="grey",xlab="Total Steps per day")
+
+```
+
+3. Mean and median number of steps taken each day
+
+```{r}
+
+sum.steps.bydate <- act.dat %>%
+                    group_by(date) %>%
+                    summarise(mean.steps = mean(steps, na.rm=T),
+                      median.steps = median(steps, na.rm=T))
+
+sum.steps.bydate
+```
+
+4. Time series plot of the average number of steps taken
+
+```{r,fig.height = 3, fig.width=6}
+
+par(mar=c(6,4,2,1))
+
+plot(sum.steps.bydate$date,sum.steps.bydate$mean.steps,type="p",pch=19,xlab="Date",ylab="Average Steps",main="Average Steps Taken By Date",xaxt="n")
+axis(1, at=sum.steps.bydate$date, labels=sum.steps.bydate$date, las = 2, cex.axis = 0.5)
+points(sum.steps.bydate$date,sum.steps.bydate$mean.steps,type="l")
+
+
+```
+
+5. The 5-minute interval that, on average, contains the maximum number of steps
+
+```{r}
+ave.steps.byint <- act.dat %>%
+                    group_by(interval) %>%
+                    summarise(mean.steps = mean(steps, na.rm=T)) %>%
+                    filter(mean.steps==max(mean.steps))
+  
+ave.steps.byint
+
+```
+
+6. Code to describe and show a strategy for imputing missing data
+
+We noticed that there are quite many missings in the "steps" variable. We will fill in those missings in steps (named "steps.imput"") by taking the median value of that specific interval. If there is a missing in that specific date, then all missings in steps were in that specific date. Note, this is just a demo and it was not a sophisticated way. 
+
+```{r}
+
+### fill in missings.  ###
+med.step.by.int <- act.dat %>%
+                   group_by(interval) %>%
+                   summarise(med.int = median(steps, na.rm=T)) %>%
+                   as.data.frame()
+
+act.dat$steps.imput <- act.dat$steps
+
+### replace NA as med.step.by.int for the date with missing. note, the act.dat$interval order were exactly matched to med.step.by.int
+act.dat$steps.imput <- act.dat$steps
+  for( i in 1: length(n.miss.by.date$date)){
+    act.dat$steps.imput[as.character(act.dat$date)==as.character(n.miss.by.date$date)[i]] <- med.step.by.int$med.int 
+  } ### end for i
+
+
+summary(act.dat[,c("steps","steps.imput")])
+
+```
+
+7.Histogram of the total number of steps taken each day after missing values are imputed
+
+```{r}
+sum.steps.imput.bydate <- act.dat %>%
+                    group_by(date) %>%
+                    summarise(sum.steps.imput = sum(steps.imput, na.rm=T))
+                    
+hist(sum.steps.imput.bydate$sum.steps.imput,main="Histogram of Total Steps (impute) per Day",col="grey",xlab="Total Steps per day")
+
+```
+
+8.Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends. We visually scaned the plot, weekend had more steps in time interval between 1000-2000 compared to weekdays.
 
 
 
-## What is the average daily activity pattern?
+```{r}
+library(lubridate)
+library(ggplot2)
+
+ave.step.byint.wkday <- act.dat %>%
+                mutate(wkday = wday(as.Date(date),label=TRUE),
+                       I.wkend = ifelse(as.character(wkday) %in% c("Sun", "Sat"), "Weekend", "Weekday")) %>%
+                group_by(I.wkend,interval) %>%
+                summarise(ave.step.byint = mean(steps,na.rm=T)) 
+
+ggplot(ave.step.byint.wkday,aes(x=interval,y=ave.step.byint))+
+  geom_line() +
+  labs(x = "Time Interval", y = "Average Steps") + 
+  facet_wrap(~I.wkend,nrow=2)
 
 
 
-## Imputing missing values
 
-
-
-## Are there differences in activity patterns between weekdays and weekends?
+```
